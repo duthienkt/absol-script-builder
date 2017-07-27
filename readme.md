@@ -33,3 +33,13 @@ Ví dụ : ***setting.build.json***
 ```
 
 Các định dạng hỗ trợ tương ứng với type bao gồm css, js(javascript), txt và html ,php và raw(chỉ copy).
+
+
+## Bước 2 : tạo script để chạy build 
+
+```javascript
+var grov = require("grov");
+var builder = grov.createBuilder("setting.build.json", 3000);
+```
+
+Trong đó 3000 là thời gian cập nhật
