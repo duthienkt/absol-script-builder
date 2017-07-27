@@ -35,12 +35,14 @@ function FileMonitor(path) {
         if (!ms)
             ms = 3000;
         setInterval(this.tick, ms);
+        return this;
     };
     this.stop = function() {
         if (intevalId) {
             clearInterval(intevalId);
             intevalId = false;
         }
+        return this;
     };
 }
 
@@ -108,59 +110,64 @@ builders.txt = function(rec) {
 };
 
 
-function Builder(rec) {
-
-}
-
-exports.createBuilder = function(path) {
-    if (fs.existsSync(path)) {
-        
-    }
-    else {
-        console.log("Error : "+ path +" not found");
-    }
-};
-
-
-
-
-
-function BuilderManager() {
-    var builders = [];
+function Builder(path, inteval) {
     var THIS = this;
-    this.css = function(path) {
-        var b = new CssBuilder(path);
-        builders.push(b);
-        return b;
+    var data;
+    var monitorsHolder = [];
+    var id = 0;
+    function MonitorHolder(item) {
+        var fileMonitor = new FileMonitor(item.input)
+            .setOnModify(function() {
+                if (builders[item.type]) {
+                    builders[item.type](item);
+                    console.log("["+(++ id) +"] "+ item.input +" -> "+ item.output);
+                }
+            }).start();
 
-    };
+        this.dispose = function() {
+            fileMonitor.stop();
+        };
+    }
 
-    this.js = function(path) {
-        var b = new JavaScriptBuilder(path);
-        builders.push(b);
-        return b;
-
-    };
-
-    this.buildAll = function() {
-        builders.forEach(function(builder) {
-            builder.build();
+    this.onSettingFileChanged = function() {
+        fs.readFile(path, function(err, data) {
+            if (err) {
+                console.log(err);
+            }
+            else {
+                var rec = JSON.parse(data);
+                if (rec) {
+                    THIS.onDataChanged(rec);
+                }
+            }
         });
     };
 
-    this.printDocument = function(path) {
-        var data = "| Source | Output | Id |\n|---|---|---|\n";
-        for (var i = 0; i < builders.length; ++i) {
-            data += "| " + builders[i].path + " | " + builders[i].outPath + " | " + builders[i].id + " |\n";
+    this.onDataChanged = function(rec) {
+        data = rec;
+        for (var i = 0; i < monitorsHolder.length; ++i)
+            monitorsHolder[i].dispose();
+        monitorsHolder = [];
+        for (var i = 0; i < rec.items.length; ++i) {
+            var item = rec.items[i];
+            monitorsHolder.push(new MonitorHolder(item));
         }
+        console.log("Setting changed");
     };
 
-    this.start = function(inteval) {
-        setInterval(THIS.buildAll, 1500);
+    var settingMonitor = new FileMonitor(path)
+        .setOnModify(this.onSettingFileChanged).start(inteval);
+
+    this.dispose = function() {
+        for (var i = 0; i < monitorsHolder.length; ++i)
+            monitorsHolder[i].dispose();
+        monitorsHolder = [];
+        settingMonitor.stop();
     };
 }
 
-// var b = new BuilderManager();
-// b.css('abc.txt').to('abc.css.php').withId('abc.css');
-// b.start(5000);
-// exports = new BuilderManager();
+exports.createBuilder = function(path, inteval) {
+    if (!inteval) inteval = 3000; 
+    return new Builder(path, inteval);
+};
+
