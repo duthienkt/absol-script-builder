@@ -1,0 +1,11 @@
+{
+  "name": "grov",
+  "version": "1.0.0",
+  "description": "Php builder",
+  "main": "grov.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "Du Thien (blueskythien2010@live.com)",
+  "license": "ISC"
+}
