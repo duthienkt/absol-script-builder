@@ -1,5 +1,6 @@
 var fs = require("fs");
 
+
 function FileMonitor(path) {
     var lastModify = "";
     var onModify;
@@ -92,6 +93,11 @@ builders.raw = function(rec) {
     fs.createReadStream(rec.input).pipe(fs.createWriteStream(rec.output));
 };
 
+builders.php = builders.raw;
+
+
+
+
 builders.txt = function(rec) {
     fs.readFile(rec.input, function(err, data) {
         if (err) {
@@ -107,6 +113,12 @@ builders.txt = function(rec) {
             fs.writeFile(rec.output, wdata, 'utf8');
         }
     });
+};
+
+builders.html = builders.txt;
+
+builders.folder = function(rec){
+    
 };
 
 
