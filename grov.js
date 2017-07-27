@@ -3,19 +3,27 @@ var fs = require("fs");
 function FileMonitor(path) {
     var lastModify = "";
     var onModify;
+    var intevalId = false;
     this.tick = function() {
-        fs.stat(path, function(err, stats) {
-            if (err) {
-                console.log(err);
-            }
-            else {
-                if (stats.mtime + "" != lastModify) {
-                    lastModify = stats.mtime + "";
-                    if (onModify)
-                        onModify();
+        if (fs.existsSync(path)) {
+            // Do something
+
+            fs.stat(path, function(err, stats) {
+                if (err) {
+                    console.log(err);
                 }
-            }
-        });
+                else {
+                    if (stats.mtime + "" != lastModify) {
+                        lastModify = stats.mtime + "";
+                        if (onModify)
+                            onModify();
+                    }
+                }
+            });
+        }
+        else {
+            console.log("Error : " + path + " not found");
+        }
     };
 
     this.setOnModify = function(callback) {
@@ -28,78 +36,94 @@ function FileMonitor(path) {
             ms = 3000;
         setInterval(this.tick, ms);
     };
-}
-
-
-function CssBuilder(path) {
-    this.lastModify = "";
-    this.outPath = "temp.txt";
-    this.id = "temp";
-    this.path = path;
-    var THIS = this;
-    this.to = function(path2) {
-        THIS.outPath = path2;
-        return THIS;
-    };
-    this.withId = function(id) {
-        THIS.id = id;
-        return THIS;
-    };
-    this.build = function() {
-        fs.stat(path, function(err, stats) {
-            if (THIS.lastModify + "" == stats.mtime + "") return;
-            console.log(stats.mtime);
-            THIS.lastModify = stats.mtime;
-            console.log("Build file \"" + path + "\" to \"" + THIS.outPath + "\" with id=\"" + THIS.id + "\"");
-            fs.readFile(path, function(err, data) {
-                var wdata =
-                    "<?php\n$content[\"" +
-                    THIS.id +
-                    "\"] = function(){ ?>\n<style>\n" +
-                    data +
-                    "\n</style>\n<?php\n}?>\n";
-                fs.writeFile(THIS.outPath, wdata, 'utf8');
-            });
-
-        });
+    this.stop = function() {
+        if (intevalId) {
+            clearInterval(intevalId);
+            intevalId = false;
+        }
     };
 }
 
+// new FileMonitor(".gitignore").setOnModify(function(){console.log("edit")}).start();
+
+var builders = {};
+
+builders.css = function(rec) {
+    fs.readFile(rec.input, function(err, data) {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            var wdata =
+                "<?php\n$CONTENT->exports[\"" +
+                rec.id +
+                "\"] = function(){ ?>\n<style>\n" +
+                data +
+                "\n</style>\n<?php\n}?>\n";
+            fs.writeFile(rec.output, wdata, 'utf8');
+        }
+    });
+
+};
 
 
-function JavaScriptBuilder(path) {
-    this.lastModify = "";
-    this.outPath = "temp.txt";
-    this.id = "temp";
-    this.path = path;
-    var THIS = this;
-    this.to = function(path2) {
-        THIS.outPath = path2;
-        return THIS;
-    };
-    this.withId = function(id) {
-        THIS.id = id;
-        return THIS;
-    };
-    this.build = function() {
-        fs.stat(path, function(err, stats) {
-            if (THIS.lastModify == stats.mtime) return;
-            console.log(stats.mtime);
-            THIS.lastModify = stats.mtime;
-            console.log("Build file \"" + path + "\" to \"" + THIS.outPath + "\" with id=\"" + THIS.id + "\"");
-            fs.readFile(path, function(err, data) {
-                var wdata =
-                    "<?php\n$content[\"" +
-                    THIS.id +
-                    "\"] = function(){ ?>\n<script type=\"text/javascript\">\n" +
-                    data +
-                    "\n</script>\n<?php\n}?>\n";
-                fs.writeFile(THIS.outPath, wdata, 'utf8');
-            });
+builders.js = function(rec) {
+    fs.readFile(rec.input, function(err, data) {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            var wdata =
+                "<?php\n$CONTENT->exports[\"" +
+                rec.id +
+                "\"] = function(){ ?>\n<script type=\"text/javascript\">\n" +
+                data +
+                "\n</script>\n<?php\n}?>\n";
+            fs.writeFile(rec.output, wdata, 'utf8');
+        }
+    });
 
-        });
-    };
+};
+
+
+builders.raw = function(rec) {
+    fs.createReadStream(rec.input).pipe(fs.createWriteStream(rec.output));
+};
+
+builders.txt = function(rec) {
+    fs.readFile(rec.input, function(err, data) {
+        if (err) {
+            console.log(err);
+        }
+        else {
+            var wdata =
+                "<?php\n$CONTENT->exports[\"" +
+                rec.id +
+                "\"] = function(){ ?>\n" +
+                data +
+                "\n<?php\n}?>\n";
+            fs.writeFile(rec.output, wdata, 'utf8');
+        }
+    });
+};
+
+
+function Builder(rec) {
+
 }
+
+exports.createBuilder = function(path) {
+    if (fs.existsSync(path)) {
+        
+    }
+    else {
+        console.log("Error : "+ path +" not found");
+    }
+};
+
+
+
+
 
 function BuilderManager() {
     var builders = [];
@@ -136,7 +160,7 @@ function BuilderManager() {
     };
 }
 
-var b = new BuilderManager();
-b.css('abc.txt').to('abc.css.php').withId('abc.css');
-b.start(5000);
-exports = new BuilderManager();
+// var b = new BuilderManager();
+// b.css('abc.txt').to('abc.css.php').withId('abc.css');
+// b.start(5000);
+// exports = new BuilderManager();
