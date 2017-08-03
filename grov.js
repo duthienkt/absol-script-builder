@@ -35,7 +35,7 @@ function FileMonitor(path) {
     this.start = function(ms) {
         if (!ms)
             ms = 3000;
-        setInterval(this.tick, ms);
+        intevalId = setInterval(this.tick, ms);
         return this;
     };
     this.stop = function() {
