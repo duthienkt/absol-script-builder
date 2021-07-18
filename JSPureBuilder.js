@@ -290,7 +290,6 @@ JSPureBuilder.prototype._sortIds = function () {
         var vs = graph[u].vs.reverse();
         vs.forEach(function (v) {
             if (inStack[v]) {
-                console.log("Loop", u, v);
             }
             else {
                 if (!d[v] || counter > d[v]) {
