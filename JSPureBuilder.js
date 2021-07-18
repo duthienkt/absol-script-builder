@@ -91,12 +91,14 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath, prev) {
         else {
             transformInfo = {
                 moduleId: idPath,
-                prev: prev
+                prev: prev,
+                dependencies: []
             };
             self.transformedFiles[idPath] = transformInfo;
         }
 
         var extName = path.extname(filePath).toLowerCase();
+
         if (extName === '.js') {
             return self.buildJS(filePath, transformInfo);
         }
@@ -104,10 +106,10 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath, prev) {
             self.buildTpl(filePath, transformInfo);
         }
         else if (extName === '.css') {
-            self.buildCSS(filePath, transformInfo);
+            return self.buildCSS(filePath, transformInfo);
         }
         else if (extName === '.json') {
-            self.buildJSON(filePath, transformInfo);
+            return self.buildJSON(filePath, transformInfo);
         }
         else {
             throw new Error("Not detect type " + extName + '!');
@@ -183,8 +185,7 @@ JSPureBuilder.prototype.buildJSON = function (filePath, transformInfo) {
 JSPureBuilder.prototype.buildCSS = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
-        transformInfo.dependencies = {};
-
+        transformInfo.dependencies = [];
         var id = path.relative(self.root, filePath).replace(/^node_module/, 'mdl').replace(/[/\\]/, '__');
         transformInfo.code = 'document.getElementById("' + id + '");\n';
         transformInfo.styleSheet = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + code;

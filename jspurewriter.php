@@ -5,6 +5,7 @@ class JSPureWriter
     public static function write($indexed_opt)
     {
         $writer = new JSPureWriter($indexed_opt);
+        $writer->writeStyleTag();
         $writer->writeScriptTag();
     }
 
@@ -47,6 +48,13 @@ class JSPureWriter
         echo "\nreturn module.exports;\n};\n\n";
     }
 
+    function writeJSStyleModule($id)
+    {
+        echo "moduleFactories[\"" . $id . "\"] = function(module, exports, require, __dir__, __file_name__){\n";
+        echo "module.exports = {};";
+        echo "\nreturn module.exports;\n};\n\n";
+    }
+
     function writeJSExeFactor($id){
         echo "\nmodule_require(null,\"".$id."\");\n";
     }
@@ -83,6 +91,15 @@ class JSPureWriter
                     break;
             }
         }
+         $indexed_css = $this->opt["css"];
+         $n = count($indexed_css);
+          for ($i = 0; $i < $n; ++$i) {
+             switch ($indexed_css[$i][0]) {
+                 case "module":
+                     $this->writeJSStyleModule($indexed_css[$i][1]);
+                     break;
+             }
+         }
         ?>
 function _interopRequireDefault(obj) {
     return obj && obj.__esModule ? obj : { default: obj };
@@ -669,17 +686,17 @@ const path = (function () {
         echo "\n})(Function('return this')());\n";
     }
 
-    function beginCSSTag()
+    function beginStyleTag()
     {
         echo "<style>";
     }
 
-    function endCSSTag()
+    function endStyleTag()
     {
         echo "</style>";
     }
 
-    public function writeCSS()
+    public function writeStyle()
     {
         $indexed_js = $this->opt["css"];
         $n = count($indexed_js);
@@ -692,11 +709,11 @@ const path = (function () {
         }
     }
 
-    public function writeCSSTag()
+    public function writeStyleTag()
     {
-        $this->beginCSSTag();
-        $this->writeCSS();
-        $this->endCSSTag();
+        $this->beginStyleTag();
+        $this->writeStyle();
+        $this->endStyleTag();
     }
 }
 
