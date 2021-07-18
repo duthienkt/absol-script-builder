@@ -1,11 +1,15 @@
 {
-  "name": "grov",
-  "version": "1.0.0",
+  "name": "absol-script-builder",
+  "version": "2.0.0",
   "description": "Php builder",
-  "main": "grov.js",
+  "main": "index.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "author": "Du Thien (blueskythien2010@live.com)",
-  "license": "ISC"
+  "license": "ISC",
+  "dependencies": {
+    "@babel/core": "^7.14.6",
+    "@babel/traverse": "^7.14.7"
+  }
 }
