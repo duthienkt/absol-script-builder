@@ -3,6 +3,28 @@ const fs = require('fs');
 const traverse = require("@babel/traverse").default;
 const path = require('path');
 
+/***
+ *
+ * @param {[]}arr
+ * @return {[]}
+ */
+function arrRemoveDup(arr) {
+    var d = {};
+    var j = 0;
+    for (var i = 0; i < arr.length; ++i) {
+        if (!d[i]) {
+            if (i !== j) {
+                arr[j] = arr[i];
+                d[arr[i]] = true;
+            }
+            ++j;
+        }
+    }
+    while (arr.length > j) arr.pop();
+    return arr;
+}
+
+
 function JSPureBuilder(opt) {
     this.opt = opt || {};
     this.root = this.opt.root || __dirname;
@@ -19,7 +41,7 @@ function JSPureBuilder(opt) {
     this._filePathAsyncCache = {};
 
     this._buildSync = Promise.resolve();
-    this.sync = this.depthBuildFile(path.join(this.root, this.entry))
+    this.sync = this.depthBuildFile(path.join(this.root, this.entry), {})
         .then(this._sortIds.bind(this))
         .then(this._writeOutput.bind(this))
         .then(this._writeMap.bind(this));
@@ -53,7 +75,7 @@ JSPureBuilder.prototype._resolveImportPath = function (buildFileFullPath, rqPath
     }
 };
 
-JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath) {
+JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath, prev) {
     var self = this;
     var sync = this._buildSync.then(function () {
         return self._resolveFilePathAsync(buildFileFullPath);
@@ -68,7 +90,8 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath) {
         }
         else {
             transformInfo = {
-                moduleId: idPath
+                moduleId: idPath,
+                prev: prev
             };
             self.transformedFiles[idPath] = transformInfo;
         }
@@ -77,13 +100,13 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath) {
         if (extName === '.js') {
             return self.buildJS(filePath, transformInfo);
         }
-        else if (extName.match(/\.(tpl|rels|xml|svg)/)) {
+        else if (extName.match(/\.(tpl|rels|xml|svg|txt)/)) {
             self.buildTpl(filePath, transformInfo);
         }
         else if (extName === '.css') {
             self.buildCSS(filePath, transformInfo);
         }
-        else if (extName === '.json'){
+        else if (extName === '.json') {
             self.buildJSON(filePath, transformInfo);
         }
         else {
@@ -92,8 +115,10 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath) {
     });
     sync = sync.then(function (transformInfo) {
         if (!transformInfo) return;
-        var buildDependenciesAsync = Object.keys(transformInfo.dependencies).map(function (id) {
-            return self.depthBuildFile(path.join(self.root, id));
+        var buildDependenciesAsync = transformInfo.dependencies.map(function (id) {
+            var cPrev = Object.assign({}, prev);
+            cPrev[transformInfo.moduleId] = true;
+            return self.depthBuildFile(path.join(self.root, id), cPrev);
         });
         return Promise.all(buildDependenciesAsync);
     });
@@ -127,10 +152,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
                 return (path.relative(self.root, aPath) || '.').replace(/\\/g, '/');
             });
         }).then(function (dependencies) {
-            transformInfo.dependencies = dependencies.reduce(function (ac, cr) {
-                ac[cr] = true;
-                return ac;
-            }, {});
+            transformInfo.dependencies = arrRemoveDup(dependencies);
             return transformInfo;
         });
     }).catch(function (err) {
@@ -141,7 +163,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
 JSPureBuilder.prototype.buildTpl = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
-        transformInfo.dependencies = {};
+        transformInfo.dependencies = [];
         transformInfo.code = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + 'module.exports = ' + JSON.stringify(code) + ';\n';
         transformInfo.type = 'javascript';
     });
@@ -151,7 +173,7 @@ JSPureBuilder.prototype.buildTpl = function (filePath, transformInfo) {
 JSPureBuilder.prototype.buildJSON = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
-        transformInfo.dependencies = {};
+        transformInfo.dependencies = [];
         transformInfo.code = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + 'module.exports = ' + code + ';\n';
         transformInfo.type = 'javascript';
     });
@@ -251,45 +273,40 @@ JSPureBuilder.prototype._sortIds = function () {
     var transformedFiles = this.transformedFiles;
     var us = Object.keys(this.transformedFiles)
     var graph = us.reduce(function (ac, u) {
-        ac[u] = { vs: Object.assign({}, transformedFiles[u].dependencies) };
+        ac[u] = { vs: transformedFiles[u].dependencies.slice() };
         ac[u].count = Object.keys(ac[u].vs).length;
         return ac;
     }, {});
 
-    us.forEach(function (u) {
-        var vs = graph[u].vs;
-        for (var v in vs) {
-            graph[v].rvs = graph[v].rvs || {};
-            graph[v].rvs[u] = true;
-        }
-    });
 
-    fs.writeFileSync("dum.json", JSON.stringify(graph, null, 4), 'utf8')
+    var entryID = path.relative(this.root, path.join(this.root, this.entry));
+    var d = {};
+    var inStack = {};
+    var counter = 1;
 
-    var sortedIds = [];
-    var i, u, v, rvs;
-    var found;
-    while (us.length > 0) {
-        found = false;
-        for (i = 0; i < us.length && !found; ++i) {
-            u = us[i];
-            if (graph[u].count === 0) {
-                rvs = graph[u].rvs;
-                sortedIds.push(u);
-                for (v in rvs) {
-                    if (graph[v] && graph[v].vs[u]) {
-                        delete graph[v].vs[u];
-                        graph[v].count--;
-                    }
-                }
-                us[i] = us[us.length - 1];
-                us.pop();
-                found = true;
+    function visit(u) {
+        d[u] = counter++;
+        inStack[u] = true;
+        var vs = graph[u].vs.reverse();
+        vs.forEach(function (v) {
+            if (inStack[v]) {
+                console.log("Loop", u, v);
             }
-        }
-        if (!found) throw new Error("Can not sort modules!");
+            else {
+                if (!d[v] || counter > d[v]) {
+                    visit(v);
+                }
+            }
+
+        })
+        inStack[u] = false;
     }
-    this.sortedIds = sortedIds;
+
+    visit(entryID, 1);
+    us.sort(function (a, b) {
+        return d[b] - d[a];
+    })
+    this.sortedIds = us;
 };
 
 JSPureBuilder.prototype._writeOutput = function () {
