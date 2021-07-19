@@ -142,7 +142,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
         })
     }).then(function (bbResult) {
         var importList = self._getImportList(bbResult.ast);
-        transformInfo.code = bbResult.code;//.replace(/(\r?\n)function\s+(_interopRequire|_getRequireWildcardCache)[^\r\n]+(\r?\n)/g, '\n');
+        transformInfo.code = bbResult.code.replace(/(\r?\n)function\s+(_interopRequire|_getRequireWildcardCache)[^\r\n]+(\r?\n)/g, '\n');
         transformInfo.code = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + transformInfo.code;
         transformInfo.type = 'javascript';
         var loadingImportFilePaths = importList.map(function (rqPath) {
