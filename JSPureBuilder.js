@@ -68,7 +68,7 @@ JSPureBuilder.prototype._getImportList = function (ast) {
 JSPureBuilder.prototype._resolveImportPath = function (buildFileFullPath, rqPath) {
     var folder = path.dirname(buildFileFullPath);
     if (rqPath.startsWith('.')) {
-        return path.relative(this.root, path.join(folder, rqPath)).replace(/\\/g, '/');
+        return path.relative(this.root, path.join(folder, rqPath)).replace(/\\/g, '/')||'.';
     }
     else {
         return path.join(this.root, 'node_modules', rqPath).replace(/\\/g, '/');
@@ -186,7 +186,7 @@ JSPureBuilder.prototype.buildCSS = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
         transformInfo.dependencies = [];
-        var id = path.relative(self.root, filePath).replace(/^node_module/, 'mdl').replace(/[/\\]/, '__');
+        var id = (path.relative(self.root, filePath)||'.').replace(/^node_module/, 'mdl').replace(/[/\\]/, '__');
         transformInfo.code = 'document.getElementById("' + id + '");\n';
         transformInfo.styleSheet = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + code;
         transformInfo.type = 'stylesheet'
@@ -210,6 +210,7 @@ JSPureBuilder.prototype._readFileAsync = function (fPath) {
     });
 };
 
+
 /***
  *
  * @param {string} fPath absolute path
@@ -227,7 +228,7 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                     }
                     else {
                         var shortId = (path.relative(self.root, fPath) || '.').replace(/\\/g, '/');
-                        var longId = (path.relative(self.root, mainFPath)).replace(/\\/g, '/');
+                        var longId = (path.relative(self.root, mainFPath) || '.').replace(/\\/g, '/');
                         if (longId !== shortId && shortId + '.js' !== longId) {
                             self.shortIds[shortId] = longId;
                             console.log('Map ', shortId, '=>', longId);
@@ -236,7 +237,6 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                     }
                 })
         }
-
         fs.stat(fPath, function (err, stats) {
             if (err || fs.existsSync(fPath + '.js')) {
                 mainCheck(fPath + '.js');
@@ -252,6 +252,9 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                                 self._readFileAsync(path.join(fPath, 'package.json')).then(function (res) {
                                     var value = JSON.parse(res);
                                     var mainFilePath = value.main || 'index.js';
+                                    if (!fs.existsSync(path.join(fPath, mainFilePath))){
+                                        mainFilePath = "index.js";
+                                    }
                                     if (mainFilePath.toLowerCase().split('.').pop() !== 'js')
                                         mainFilePath += '.js';
                                     mainCheck(path.join(fPath, mainFilePath));
