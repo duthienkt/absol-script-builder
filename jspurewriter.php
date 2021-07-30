@@ -140,10 +140,15 @@ function module_require(cr, rq) {
     else {
         module = { exports: {} };
         modules[id] = module;
-        module.exports = factory(module, module.exports, module_require.bind(null, id), dir, id);
+        if (factory){
+            module.exports = factory(module, module.exports, module_require.bind(null, id), dir, id);
+        }
+        else {
+            console.error("Could not file module "+ id + '. ', "Please update indexed module!" );
+        }
+        
         return  module.exports;
     }
-
 }
 
 const process = {};
