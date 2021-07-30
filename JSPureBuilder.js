@@ -138,7 +138,12 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
                         "importInterop": "babel"
                     },
                 ]
-            ],
+            ]//, not work?
+            // generatorOpts:{
+            //     format:{ indent:{
+            //         style:"    "
+            //     }}
+            // }
         })
     }).then(function (bbResult) {
         var importList = self._getImportList(bbResult.ast);
@@ -155,6 +160,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
             });
         }).then(function (dependencies) {
             transformInfo.dependencies = arrRemoveDup(dependencies);
+            transformInfo.dependencies.sort();
             return transformInfo;
         });
     }).catch(function (err) {
@@ -410,9 +416,9 @@ JSPureBuilder.prototype._writeMap = function () {
     }).join(',\n')
     phpCode += '\n    );\n\n';
 
-    phpCode += '    ' + this.phpVar + ' = array("js"=> ' + this.phpVar + '_js,\n' +
-        '        "css" => ' + this.phpVar + '_css,\n' +
-        '        "dir" => ' + this.phpVar + '_dir\n' +
+    phpCode += '    ' + this.phpVar + ' = array("js"=> &' + this.phpVar + '_js,\n' +
+        '        "css" => &' + this.phpVar + '_css,\n' +
+        '        "dir" => &' + this.phpVar + '_dir\n' +
         '    );\n\n';
 
     phpCode += '?>';
