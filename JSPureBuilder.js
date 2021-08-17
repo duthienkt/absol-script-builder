@@ -137,7 +137,8 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
                     {
                         "importInterop": "babel"
                     },
-                ]
+                ],
+                "@babel/plugin-transform-spread"
             ]//, not work?
             // generatorOpts:{
             //     format:{ indent:{
