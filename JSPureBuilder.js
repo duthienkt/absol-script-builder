@@ -3,6 +3,34 @@ const fs = require('fs');
 const traverse = require("@babel/traverse").default;
 const path = require('path');
 
+
+function hashCode(cHash, text) {
+    var hash = cHash || 0, i, chr;
+    if (this.length === 0) return hash;
+    for (i = 0; i < text.length; i++) {
+        chr = text.charCodeAt(i);
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+}
+
+function comparingHashCode(text) {
+    var hash = 0, i, chr;
+    if (this.length === 0) return hash;
+    for (i = 0; i < text.length; i++) {
+        chr = text.charCodeAt(i);
+        if (chr === 13) continue;
+        hash = ((hash << 5) - hash) + chr;
+        hash |= 0; // Convert to 32bit integer
+    }
+    return hash;
+}
+
+function compareText(text0, text1) {
+    return comparingHashCode(text0) === comparingHashCode(text1);
+}
+
 /***
  *
  * @param {[]}arr
@@ -24,6 +52,15 @@ function arrRemoveDup(arr) {
     return arr;
 }
 
+function printLine(text, newLine){
+    if (newLine || newLine === undefined){
+        process.stdout.write(text+' '.repeat (process.stdout.columns - text.length)+'\n');
+    }
+    else {
+        process.stdout.write(text+' '.repeat (process.stdout.columns - text.length)+'\r');
+    }
+}
+
 
 function JSPureBuilder(opt) {
     this.opt = opt || {};
@@ -39,6 +76,8 @@ function JSPureBuilder(opt) {
     this.sortedIds = [];
     this.shortIds = {};
     this._filePathAsyncCache = {};
+    this.cssModified = 0;
+    this.jsModified = 0;
 
     this._buildSync = Promise.resolve();
     this.sync = this.depthBuildFile(path.join(this.root, this.entry), {})
@@ -68,7 +107,7 @@ JSPureBuilder.prototype._getImportList = function (ast) {
 JSPureBuilder.prototype._resolveImportPath = function (buildFileFullPath, rqPath) {
     var folder = path.dirname(buildFileFullPath);
     if (rqPath.startsWith('.')) {
-        return path.relative(this.root, path.join(folder, rqPath)).replace(/\\/g, '/')||'.';
+        return path.relative(this.root, path.join(folder, rqPath)).replace(/\\/g, '/') || '.';
     }
     else {
         return path.join(this.root, 'node_modules', rqPath).replace(/\\/g, '/');
@@ -127,6 +166,18 @@ JSPureBuilder.prototype.depthBuildFile = function (buildFileFullPath, prev) {
     return sync;
 };
 
+JSPureBuilder.prototype._transformJSFile = function (path) {
+    return new Promise(function (resolve, reject) {
+        var worker = new Worker(__dirname + '/workerTransformJSFile.js', { WorkerData: { path: path } });
+        worker.on('message', resolve);
+        worker.on('error', reject);
+        worker.on('exit', (code) => {
+            if (code !== 0)
+                reject(new Error(`stopped with  ${code} exit code`));
+        })
+    });
+};
+
 JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
@@ -155,6 +206,8 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
             return self._resolveFilePathAsync(self._resolveImportPath(filePath, rqPath));
         });
 
+        printLine('JS ' + filePath, false);
+
         return Promise.all(loadingImportFilePaths).then(function (result) {
             return result.map(function (aPath) {
                 return (path.relative(self.root, aPath) || '.').replace(/\\/g, '/');
@@ -175,6 +228,7 @@ JSPureBuilder.prototype.buildTpl = function (filePath, transformInfo) {
         transformInfo.dependencies = [];
         transformInfo.code = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + 'module.exports = ' + JSON.stringify(code) + ';\n';
         transformInfo.type = 'javascript';
+        printLine('TPL ' + filePath, false);
     });
 };
 
@@ -185,6 +239,7 @@ JSPureBuilder.prototype.buildJSON = function (filePath, transformInfo) {
         transformInfo.dependencies = [];
         transformInfo.code = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + 'module.exports = ' + code + ';\n';
         transformInfo.type = 'javascript';
+        printLine('JSON ' + filePath, false);
     });
 };
 
@@ -193,11 +248,13 @@ JSPureBuilder.prototype.buildCSS = function (filePath, transformInfo) {
     var self = this;
     return self._readFileAsync(filePath).then(function (code) {
         transformInfo.dependencies = [];
-        var id = (path.relative(self.root, filePath)||'.').replace(/^node_module/, 'mdl').replace(/[/\\]/, '__');
+        var id = (path.relative(self.root, filePath) || '.').replace(/^node_module/, 'mdl').replace(/[/\\]/, '__');
         transformInfo.code = 'document.getElementById("' + id + '");\n';
         transformInfo.styleSheet = '/*** module: ' + transformInfo.moduleId + ' ***/\n' + code;
         transformInfo.type = 'stylesheet'
         transformInfo.id = id;
+        printLine('CSS ' + filePath, false);
+
     });
 }
 
@@ -244,6 +301,7 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                     }
                 })
         }
+
         fs.stat(fPath, function (err, stats) {
             if (err || fs.existsSync(fPath + '.js')) {
                 mainCheck(fPath + '.js');
@@ -259,7 +317,7 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                                 self._readFileAsync(path.join(fPath, 'package.json')).then(function (res) {
                                     var value = JSON.parse(res);
                                     var mainFilePath = value.main || 'index.js';
-                                    if (!fs.existsSync(path.join(fPath, mainFilePath))){
+                                    if (!fs.existsSync(path.join(fPath, mainFilePath))) {
                                         mainFilePath = "index.js";
                                     }
                                     if (mainFilePath.toLowerCase().split('.').pop() !== 'js')
@@ -281,8 +339,9 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
 
 
 JSPureBuilder.prototype._sortIds = function () {
+    printLine("Sorting", false);
     var transformedFiles = this.transformedFiles;
-    var us = Object.keys(this.transformedFiles)
+    var us = Object.keys(this.transformedFiles);
     var graph = us.reduce(function (ac, u) {
         ac[u] = { vs: transformedFiles[u].dependencies.slice() };
         ac[u].count = Object.keys(ac[u].vs).length;
@@ -317,9 +376,31 @@ JSPureBuilder.prototype._sortIds = function () {
         return d[b] - d[a];
     })
     this.sortedIds = us;
+    printLine('SORT ' + us.length +' items');
+
+
+
+
+};
+
+JSPureBuilder.prototype._calcHash = function () {
+    var self = this;
+    var transformedFiles = this.transformedFiles;
+    var sortedIds = this.sortedIds;
+    sortedIds.forEach(function (id) {
+        var transformedFile = transformedFiles[id];
+        if (transformedFile.type === 'javascript') {
+            self.jsHash = hashCode(self.jsHash, transformedFile.code);
+        }
+        else if (transformedFile.type === 'stylesheet') {
+            self.cssHash = hashCode(self.cssHash, transformedFile.styleSheet);
+        }
+    });
+    console.log("Hash", [self.jsHash, self.cssHash]);
 };
 
 JSPureBuilder.prototype._writeOutput = function () {
+    var self = this;
     var transformedFiles = this.transformedFiles;
     var sortedIds = this.sortedIds;
     var output = this.output;
@@ -328,38 +409,69 @@ JSPureBuilder.prototype._writeOutput = function () {
     if (!fs.existsSync(output)) fs.mkdirSync(output);
     if (!fs.existsSync((jsFolder))) fs.mkdirSync(jsFolder);
     if (!fs.existsSync(cssFolder)) fs.mkdirSync(cssFolder);
-    sortedIds.forEach(function (id) {
-        var fName = id.replace(/^node_module/, 'mdl').replace(/[/\\]/g, '__');
-        var transformedFile = transformedFiles[id];
-        transformedFile.fName = fName;
-        var destFile;
-        if (transformedFile.type === 'javascript') {
-            destFile = path.join(output, 'js', fName);
-            if (!destFile.toLowerCase().match(/\.js$/)) {
-                destFile += '.js';
-                transformedFile.fName += '.js';
+
+    var promises = sortedIds.map(function (id) {
+        return new Promise(function (resolve){
+
+            var fName = id.replace(/^node_module/, 'mdl').replace(/[/\\]/g, '__');
+            var transformedFile = transformedFiles[id];
+            transformedFile.fName = fName;
+            var destFile;
+
+            if (transformedFile.type === 'javascript') {
+                destFile = path.join(output, 'js', fName);
+                fs.stat(destFile,function (err, stats){
+                    if (err) {
+                        self.jsModified = new Date().getTime();
+                    }
+                    else {
+                        self.jsModified = Math.max(stats.mtime.getTime(),self.jsModified );
+                    }
+                    resolve();
+                });
+                if (!destFile.toLowerCase().match(/\.js$/)) {
+                    destFile += '.js';
+                    transformedFile.fName += '.js';
+                }
+                fs.readFile(destFile, 'utf8', function (err, data) {
+                    if (err || !compareText(data, transformedFile.code)) {
+                        console.log(err ? "New " : "Update ", destFile);
+                        fs.writeFile(destFile, transformedFile.code, 'utf8', function (err) {
+                        });
+                    }
+                    else {
+                        printLine("Unchange: "+ destFile, false);
+                    }
+
+                });
             }
-            fs.readFile(destFile, 'utf8', function (err, data) {
-                if (err || data !== transformedFile.code) {
-                    console.log(err ? "New " : "Update ", destFile);
-                    fs.writeFile(destFile, transformedFile.code, 'utf8', function (err) {
-                    });
-                }
-            });
-        }
-        else if (transformedFile.type === 'stylesheet') {
-            destFile = path.join(output, 'css', fName);
-            if (!destFile.toLowerCase().match(/\.css$/)) destFile += '.css';
-            fs.readFile(destFile, 'utf8', function (err, data) {
-                if (err || data !== transformedFile.styleSheet) {
-                    console.log(err ? "New " : "Update ", destFile);
-                    fs.writeFile(destFile, transformedFile.styleSheet, 'utf8', function (err) {
-                        if (err) console.error(err);
-                    });
-                }
-            });
-        }
+            else if (transformedFile.type === 'stylesheet') {
+                destFile = path.join(output, 'css', fName);
+                if (!destFile.toLowerCase().match(/\.css$/)) destFile += '.css';
+                fs.stat(destFile,function (err, stats){
+                    if (err) {
+                        self.cssModified = new Date().getTime();
+                    }
+                    else {
+                        self.cssModified = Math.max(stats.mtime.getTime(),self.cssModified );
+                    }
+                    resolve();
+                });
+                fs.readFile(destFile, 'utf8', function (err, data) {
+                    if (err || !compareText(data, transformedFile.styleSheet)) {
+                        self.cssHash = hashCode(self.cssHash, transformedFile.styleSheet);
+                        fs.writeFile(destFile, transformedFile.styleSheet, 'utf8', function (err) {
+                            if (err) console.error(err);
+                        });
+                    }
+                    else {
+                        printLine("Unchange: "+ destFile, false);
+                    }
+                });
+            }
+        });
     });
+    return Promise.all(promises);
 };
 
 JSPureBuilder.prototype._writeMap = function () {
@@ -399,7 +511,8 @@ JSPureBuilder.prototype._writeMap = function () {
     }, []);
     var phpCode = '<?php\n';
     phpCode += '    ' + this.phpVar + '_dir = __DIR__;\n\n';
-
+    phpCode += '    ' + this.phpVar + '_js_mtime = gmdate(\'D, d M Y H:i:s\', '+(this.jsModified/1000>>0)+').\' GMT\';\n';
+    phpCode += '    ' + this.phpVar + '_css_mtime = gmdate(\'D, d M Y H:i:s\', '+(this.jsModified/1000>>0)+').\' GMT\';\n';
     phpCode += '    ' + this.phpVar + '_css = array(\n';
     phpCode += cssCmd.map(function (cmd) {
         return '        array(' + cmd.map(function (t) {
@@ -419,14 +532,16 @@ JSPureBuilder.prototype._writeMap = function () {
 
     phpCode += '    ' + this.phpVar + ' = array("js"=> &' + this.phpVar + '_js,\n' +
         '        "css" => &' + this.phpVar + '_css,\n' +
-        '        "dir" => &' + this.phpVar + '_dir\n' +
+        '        "dir" => &' + this.phpVar + '_dir,\n' +
+        '        "css_mtime" => &' + this.phpVar + '_css_mtime,\n' +
+        '        "js_mtime" => &' + this.phpVar + '_js_mtime\n' +
         '    );\n\n';
 
     phpCode += '?>';
 
     fs.readFile(phpPath, 'utf8', function (err, data) {
-        if (err || data !== phpCode) {
-            console.log(err ? "New " : "Update ", phpPath);
+        if (err || !compareText(data, phpCode)) {
+            printLine((err ? "New " : "Update ")+ phpPath);
             fs.writeFile(phpPath, phpCode, 'utf8', function (err) {
                 if (err) console.error(err);
             });
