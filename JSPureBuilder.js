@@ -206,7 +206,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
             return self._resolveFilePathAsync(self._resolveImportPath(filePath, rqPath));
         });
 
-        printLine('JS ' + filePath, false);
+        printLine('JS  ' + filePath, false);
 
         return Promise.all(loadingImportFilePaths).then(function (result) {
             return result.map(function (aPath) {
@@ -214,7 +214,6 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
             });
         }).then(function (dependencies) {
             transformInfo.dependencies = arrRemoveDup(dependencies);
-            transformInfo.dependencies.sort();
             return transformInfo;
         });
     }).catch(function (err) {
@@ -295,7 +294,7 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                         var longId = (path.relative(self.root, mainFPath) || '.').replace(/\\/g, '/');
                         if (longId !== shortId && shortId + '.js' !== longId) {
                             self.shortIds[shortId] = longId;
-                            console.log('Map ', shortId, '=>', longId);
+                            printLine('Map '+ shortId+ '=>'+ longId);
                         }
                         resolve(mainFPath);
                     }
@@ -351,29 +350,22 @@ JSPureBuilder.prototype._sortIds = function () {
 
     var entryID = path.relative(this.root, path.join(this.root, this.entry));
     var d = {};
-    var inStack = {};
     var counter = 1;
+    var visited = {};
 
     function visit(u) {
-        d[u] = counter++;
-        inStack[u] = true;
-        var vs = graph[u].vs.reverse();
+        if (visited[u]) return;
+        visited[u] = true;
+        var vs = graph[u].vs.slice();
         vs.forEach(function (v) {
-            if (inStack[v]) {
-            }
-            else {
-                if (!d[v] || counter > d[v]) {
-                    visit(v);
-                }
-            }
-
+            visit(v);
         })
-        inStack[u] = false;
+        d[u] = counter++;
     }
 
     visit(entryID, 1);
     us.sort(function (a, b) {
-        return d[b] - d[a];
+        return d[a] - d[b];
     })
     this.sortedIds = us;
     printLine('SORT ' + us.length +' items');
@@ -396,7 +388,7 @@ JSPureBuilder.prototype._calcHash = function () {
             self.cssHash = hashCode(self.cssHash, transformedFile.styleSheet);
         }
     });
-    console.log("Hash", [self.jsHash, self.cssHash]);
+    printLine("Hash "+ [self.jsHash, self.cssHash].join(':'));
 };
 
 JSPureBuilder.prototype._writeOutput = function () {
@@ -420,6 +412,11 @@ JSPureBuilder.prototype._writeOutput = function () {
 
             if (transformedFile.type === 'javascript') {
                 destFile = path.join(output, 'js', fName);
+
+                if (!destFile.toLowerCase().match(/\.js$/)) {
+                    destFile += '.js';
+                    transformedFile.fName += '.js';
+                }
                 fs.stat(destFile,function (err, stats){
                     if (err) {
                         self.jsModified = new Date().getTime();
@@ -429,13 +426,9 @@ JSPureBuilder.prototype._writeOutput = function () {
                     }
                     resolve();
                 });
-                if (!destFile.toLowerCase().match(/\.js$/)) {
-                    destFile += '.js';
-                    transformedFile.fName += '.js';
-                }
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.code)) {
-                        console.log(err ? "New " : "Update ", destFile);
+                        printLine(err ? "New " : "Update "+ destFile);
                         fs.writeFile(destFile, transformedFile.code, 'utf8', function (err) {
                         });
                     }
@@ -547,7 +540,6 @@ JSPureBuilder.prototype._writeMap = function () {
             });
         }
     });
-
 };
 
 
