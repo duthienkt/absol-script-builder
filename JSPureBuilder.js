@@ -214,6 +214,7 @@ JSPureBuilder.prototype.buildJS = function (filePath, transformInfo) {
             });
         }).then(function (dependencies) {
             transformInfo.dependencies = arrRemoveDup(dependencies);
+            // transformInfo.dependencies.sort();
             return transformInfo;
         });
     }).catch(function (err) {
@@ -452,7 +453,7 @@ JSPureBuilder.prototype._writeOutput = function () {
                 });
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.styleSheet)) {
-                        self.cssHash = hashCode(self.cssHash, transformedFile.styleSheet);
+                        printLine(err ? "New " : "Update "+ destFile);
                         fs.writeFile(destFile, transformedFile.styleSheet, 'utf8', function (err) {
                             if (err) console.error(err);
                         });
