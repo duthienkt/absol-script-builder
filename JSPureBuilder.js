@@ -52,12 +52,12 @@ function arrRemoveDup(arr) {
     return arr;
 }
 
-function printLine(text, newLine){
-    if (newLine || newLine === undefined){
-        process.stdout.write(text+' '.repeat (process.stdout.columns - text.length)+'\n');
+function printLine(text, newLine) {
+    if (newLine || newLine === undefined) {
+        process.stdout.write(text + ' '.repeat(process.stdout.columns - text.length) + '\n');
     }
     else {
-        process.stdout.write(text+' '.repeat (process.stdout.columns - text.length)+'\r');
+        process.stdout.write(text + ' '.repeat(process.stdout.columns - text.length) + '\r');
     }
 }
 
@@ -295,7 +295,7 @@ JSPureBuilder.prototype._resolveFilePathAsync = function (fPath) {
                         var longId = (path.relative(self.root, mainFPath) || '.').replace(/\\/g, '/');
                         if (longId !== shortId && shortId + '.js' !== longId) {
                             self.shortIds[shortId] = longId;
-                            printLine('Map '+ shortId+ '=>'+ longId);
+                            printLine('Map ' + shortId + '=>' + longId);
                         }
                         resolve(mainFPath);
                     }
@@ -369,9 +369,7 @@ JSPureBuilder.prototype._sortIds = function () {
         return d[a] - d[b];
     })
     this.sortedIds = us;
-    printLine('SORT ' + us.length +' items');
-
-
+    printLine('SORT ' + us.length + ' items');
 
 
 };
@@ -389,7 +387,7 @@ JSPureBuilder.prototype._calcHash = function () {
             self.cssHash = hashCode(self.cssHash, transformedFile.styleSheet);
         }
     });
-    printLine("Hash "+ [self.jsHash, self.cssHash].join(':'));
+    printLine("Hash " + [self.jsHash, self.cssHash].join(':'));
 };
 
 JSPureBuilder.prototype._writeOutput = function () {
@@ -404,7 +402,7 @@ JSPureBuilder.prototype._writeOutput = function () {
     if (!fs.existsSync(cssFolder)) fs.mkdirSync(cssFolder);
 
     var promises = sortedIds.map(function (id) {
-        return new Promise(function (resolve){
+        return new Promise(function (resolve) {
 
             var fName = id.replace(/^node_module/, 'mdl').replace(/[/\\]/g, '__');
             var transformedFile = transformedFiles[id];
@@ -418,23 +416,23 @@ JSPureBuilder.prototype._writeOutput = function () {
                     destFile += '.js';
                     transformedFile.fName += '.js';
                 }
-                fs.stat(destFile,function (err, stats){
+                fs.stat(destFile, function (err, stats) {
                     if (err) {
                         self.jsModified = new Date().getTime();
                     }
                     else {
-                        self.jsModified = Math.max(stats.mtime.getTime(),self.jsModified );
+                        self.jsModified = Math.max(stats.mtime.getTime(), self.jsModified);
                     }
                     resolve();
                 });
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.code)) {
-                        printLine((err ? "New " : "Update ")+ destFile);
+                        printLine((err ? "New " : "Update ") + destFile);
                         fs.writeFile(destFile, transformedFile.code, 'utf8', function (err) {
                         });
                     }
                     else {
-                        printLine("Unchange: "+ destFile, false);
+                        printLine("Unchange: " + destFile, false);
                     }
 
                 });
@@ -442,24 +440,24 @@ JSPureBuilder.prototype._writeOutput = function () {
             else if (transformedFile.type === 'stylesheet') {
                 destFile = path.join(output, 'css', fName);
                 if (!destFile.toLowerCase().match(/\.css$/)) destFile += '.css';
-                fs.stat(destFile,function (err, stats){
+                fs.stat(destFile, function (err, stats) {
                     if (err) {
                         self.cssModified = new Date().getTime();
                     }
                     else {
-                        self.cssModified = Math.max(stats.mtime.getTime(),self.cssModified );
+                        self.cssModified = Math.max(stats.mtime.getTime(), self.cssModified);
                     }
                     resolve();
                 });
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.styleSheet)) {
-                        printLine((err ? "New " : "Update ")+ destFile);
+                        printLine((err ? "New " : "Update ") + destFile);
                         fs.writeFile(destFile, transformedFile.styleSheet, 'utf8', function (err) {
                             if (err) console.error(err);
                         });
                     }
                     else {
-                        printLine("Unchange: "+ destFile, false);
+                        printLine("Unchange: " + destFile, false);
                     }
                 });
             }
@@ -505,8 +503,10 @@ JSPureBuilder.prototype._writeMap = function () {
     }, []);
     var phpCode = '<?php\n';
     phpCode += '    ' + this.phpVar + '_dir = __DIR__;\n\n';
-    phpCode += '    ' + this.phpVar + '_js_mtime = gmdate(\'D, d M Y H:i:s\', '+(this.jsModified/1000>>0)+').\' GMT\';\n';
-    phpCode += '    ' + this.phpVar + '_css_mtime = gmdate(\'D, d M Y H:i:s\', '+(this.jsModified/1000>>0)+').\' GMT\';\n';
+    phpCode += '    ' + this.phpVar + '_js_mtime_stamp = ' + (this.jsModified / 1000 >> 0) + ';\n\n';
+    phpCode += '    ' + this.phpVar + '_css_mtime_stamp = ' + (this.cssModified / 1000 >> 0) + ';\n\n';
+    phpCode += '    ' + this.phpVar + '_js_mtime = gmdate(\'D, d M Y H:i:s\', ' + (this.jsModified / 1000 >> 0) + ').\' GMT\';\n';
+    phpCode += '    ' + this.phpVar + '_css_mtime = gmdate(\'D, d M Y H:i:s\', ' + (this.cssModified / 1000 >> 0) + ').\' GMT\';\n';
     phpCode += '    ' + this.phpVar + '_css = array(\n';
     phpCode += cssCmd.map(function (cmd) {
         return '        array(' + cmd.map(function (t) {
@@ -535,7 +535,7 @@ JSPureBuilder.prototype._writeMap = function () {
 
     fs.readFile(phpPath, 'utf8', function (err, data) {
         if (err || !compareText(data, phpCode)) {
-            printLine((err ? "New " : "Update ")+ phpPath);
+            printLine((err ? "New " : "Update ") + phpPath);
             fs.writeFile(phpPath, phpCode, 'utf8', function (err) {
                 if (err) console.error(err);
             });
