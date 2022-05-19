@@ -528,7 +528,9 @@ JSPureBuilder.prototype._writeMap = function () {
         '        "css" => &' + this.phpVar + '_css,\n' +
         '        "dir" => &' + this.phpVar + '_dir,\n' +
         '        "css_mtime" => &' + this.phpVar + '_css_mtime,\n' +
-        '        "js_mtime" => &' + this.phpVar + '_js_mtime\n' +
+        '        "js_mtime" => &' + this.phpVar + '_js_mtime,\n' +
+        '        "css_mtime_stamp" => &' + this.phpVar + '_css_mtime_stamp,\n' +
+        '        "js_mtime_stamp" => &' + this.phpVar + '_js_mtime_stamp\n' +
         '    );\n\n';
 
     phpCode += '?>';
@@ -541,6 +543,11 @@ JSPureBuilder.prototype._writeMap = function () {
             });
         }
     });
+
+    fs.writeFile("map.json", JSON.stringify(shortIdsRev, null, 4), 'utf8', function (err, data) {
+
+    });
+    printLine("Save map: map.json", false);
 };
 
 
