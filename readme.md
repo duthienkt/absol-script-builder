@@ -26,14 +26,39 @@ var b = new JSPureBuilder({
 
 ## create JS file
 
+absol-full-js.php
+
 ```php
 <?php
+    include_once "absol_indexed_source.php";
+    $DONT_CACHE = !isset($_GET["mtime"]);
     ob_start();
     header('Content-Type: application/javascript');
-    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-    header("Cache-Control: post-check=0, pre-check=0", false);
-    header("Pragma: no-cache");
-    include_once "absol_indexed_source.php";
+
+
+    $mtime =  $absol_indexed["js_mtime"];
+    $tsstring = ($mtime);
+    header("Last-Modified: ".$mtime);
+    header('ETag: "' .$tsstring.'"');
+
+    if ($DONT_CACHE){
+        header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+    }
+    else {
+        // header("Cache-Control: max-age=3600");
+        $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? $_SERVER['HTTP_IF_MODIFIED_SINCE'] : false;
+        $if_none_match = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? $_SERVER['HTTP_IF_NONE_MATCH'] : false;
+        if ((($if_none_match && $if_none_match == $etag) || (!$if_none_match)) &&
+            ($if_modified_since && $if_modified_since == $tsstring))
+        {
+            header('HTTP/1.1 304 Not Modified');
+            exit();
+        }
+    }
+
+
     include_once "jspurewriter.php";
     $writer = new JSPureWriter($absol_indexed);
     $writer->writeScript();
@@ -42,23 +67,56 @@ var b = new JSPureBuilder({
 
 ## Create css file
 
+absol-full-css.php
+
 ```php
 <?php
-    ob_start();
-    header('Content-Type: application/javascript');
-    header("Content-type: text/css");
-    header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
-    header("Cache-Control: post-check=0, pre-check=0", false);
-    header("Pragma: no-cache");
     include_once "absol_indexed_source.php";
+    $DONT_CACHE = !isset($_GET["mtime"]);
+    ob_start();
+    header("Content-type: text/css");
+
+    $mtime =  $absol_indexed["js_mtime"];
+    $tsstring = md5($mtime);
+    header("Last-Modified: ".$mtime);
+    header('ETag: "' .$tsstring.'"');
+
+    if ($DONT_CACHE){
+        header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
+        header("Cache-Control: post-check=0, pre-check=0", false);
+        header("Pragma: no-cache");
+    }
+    else {
+        // header("Cache-Control: max-age=3600");
+        $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? $_SERVER['HTTP_IF_MODIFIED_SINCE'] : false;
+        $if_none_match = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? $_SERVER['HTTP_IF_NONE_MATCH'] : false;
+        if ((($if_none_match && $if_none_match == $etag) || (!$if_none_match)) &&
+            ($if_modified_since && $if_modified_since == $tsstring))
+        {
+            header('HTTP/1.1 304 Not Modified');
+            exit();
+        }
+    }
+
     include_once "jspurewriter.php";
     $writer = new JSPureWriter($absol_indexed);
-    $writer->writeCSS();
+    $writer->writeStyle();
+
 ?>
 ```
 
 ## Write to HTML
 
+```php
+<?php
+    include_once "absol_indexed_source.php";
+    $basePath = substr(str_replace('\\', '/', realpath(dirname(__FILE__))), strlen(str_replace('\\', '/', realpath($_SERVER['DOCUMENT_ROOT']))));
+    // echo "<script src=\"./absol.dependents.js?time=".(stat($_SERVER['DOCUMENT_ROOT'].'/absol/absol.dependents.js')['mtime'])."\"></script>";
+    echo "<script src=\"".$basePath."/absol.dependents.js?time=".(stat(dirname(__FILE__).'/absol.dependents.js')['mtime'])."\"></script>\n";
+    echo "<script type=\"text/javascript\" src=\"".$basePath."/absol-full-js.php?mtime=$absol_indexed_js_mtime_stamp\"></script>\n";
 
+    echo "<link rel=\"stylesheet\" href=\"".$basePath."/absol-full-css.php?mtime=$absol_indexed_css_mtime_stamp\">\n";
 
-TODO
+?>
+?>
+```
