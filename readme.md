@@ -31,15 +31,15 @@ absol-full-js.php
 ```php
 <?php
     include_once "absol_indexed_source.php";
-    $DONT_CACHE = !isset($_GET["mtime"]);
+
+    $DONT_CACHE = false;
     ob_start();
     header('Content-Type: application/javascript');
 
-
     $mtime =  $absol_indexed["js_mtime"];
-    $tsstring = ($mtime);
+    $etag = md5($mtime);
     header("Last-Modified: ".$mtime);
-    header('ETag: "' .$tsstring.'"');
+    header('ETag: "' .$etag.'"');
 
     if ($DONT_CACHE){
         header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -51,17 +51,17 @@ absol-full-js.php
         $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? $_SERVER['HTTP_IF_MODIFIED_SINCE'] : false;
         $if_none_match = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? $_SERVER['HTTP_IF_NONE_MATCH'] : false;
         if ((($if_none_match && $if_none_match == $etag) || (!$if_none_match)) &&
-            ($if_modified_since && $if_modified_since == $tsstring))
+            ($if_modified_since && $if_modified_since == $mtime))
         {
             header('HTTP/1.1 304 Not Modified');
             exit();
         }
     }
 
-
     include_once "jspurewriter.php";
     $writer = new JSPureWriter($absol_indexed);
     $writer->writeScript();
+    // echo "console.log(\"".$absol_indexed["js_mtime"]."\")";
 ?>
 ```
 
@@ -72,14 +72,14 @@ absol-full-css.php
 ```php
 <?php
     include_once "absol_indexed_source.php";
+
     $DONT_CACHE = !isset($_GET["mtime"]);
     ob_start();
     header("Content-type: text/css");
-
     $mtime =  $absol_indexed["js_mtime"];
-    $tsstring = md5($mtime);
+    $etag = md5($mtime);
     header("Last-Modified: ".$mtime);
-    header('ETag: "' .$tsstring.'"');
+    header('ETag: "' .$etag.'"');
 
     if ($DONT_CACHE){
         header("Cache-Control: no-store, no-cache, must-revalidate, max-age=0");
@@ -91,7 +91,7 @@ absol-full-css.php
         $if_modified_since = isset($_SERVER['HTTP_IF_MODIFIED_SINCE']) ? $_SERVER['HTTP_IF_MODIFIED_SINCE'] : false;
         $if_none_match = isset($_SERVER['HTTP_IF_NONE_MATCH']) ? $_SERVER['HTTP_IF_NONE_MATCH'] : false;
         if ((($if_none_match && $if_none_match == $etag) || (!$if_none_match)) &&
-            ($if_modified_since && $if_modified_since == $tsstring))
+            ($if_modified_since && $if_modified_since == $mtime))
         {
             header('HTTP/1.1 304 Not Modified');
             exit();
