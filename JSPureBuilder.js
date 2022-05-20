@@ -76,13 +76,19 @@ function JSPureBuilder(opt) {
     this.sortedIds = [];
     this.shortIds = {};
     this._filePathAsyncCache = {};
-    this.cssModified = 0;
+
+    this.jsFiles = [];
     this.jsModified = 0;
+
+    this.cssFiles = [];
+    this.cssModified = 0;
+
 
     this._buildSync = Promise.resolve();
     this.sync = this.depthBuildFile(path.join(this.root, this.entry), {})
         .then(this._sortIds.bind(this))
         .then(this._writeOutput.bind(this))
+        .then(this._statAll.bind(this))
         .then(this._writeMap.bind(this));
 }
 
@@ -416,15 +422,7 @@ JSPureBuilder.prototype._writeOutput = function () {
                     destFile += '.js';
                     transformedFile.fName += '.js';
                 }
-                fs.stat(destFile, function (err, stats) {
-                    if (err) {
-                        self.jsModified = new Date().getTime();
-                    }
-                    else {
-                        self.jsModified = Math.max(stats.mtime.getTime(), self.jsModified);
-                    }
-                    resolve();
-                });
+                self.jsFiles.push(destFile);
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.code)) {
                         printLine((err ? "New " : "Update ") + destFile);
@@ -434,21 +432,14 @@ JSPureBuilder.prototype._writeOutput = function () {
                     else {
                         printLine("Unchange: " + destFile, false);
                     }
-
+                    resolve();
                 });
             }
             else if (transformedFile.type === 'stylesheet') {
                 destFile = path.join(output, 'css', fName);
                 if (!destFile.toLowerCase().match(/\.css$/)) destFile += '.css';
-                fs.stat(destFile, function (err, stats) {
-                    if (err) {
-                        self.cssModified = new Date().getTime();
-                    }
-                    else {
-                        self.cssModified = Math.max(stats.mtime.getTime(), self.cssModified);
-                    }
-                    resolve();
-                });
+
+                self.cssFiles.push(destFile);
                 fs.readFile(destFile, 'utf8', function (err, data) {
                     if (err || !compareText(data, transformedFile.styleSheet)) {
                         printLine((err ? "New " : "Update ") + destFile);
@@ -459,11 +450,46 @@ JSPureBuilder.prototype._writeOutput = function () {
                     else {
                         printLine("Unchange: " + destFile, false);
                     }
+                    resolve();
                 });
             }
         });
     });
     return Promise.all(promises);
+};
+
+JSPureBuilder.prototype._statAll = function () {
+    var sync = [];
+    this.cssFiles.forEach(fName => {
+        sync.push(new Promise(rs => {
+            fs.stat(fName, (err, stats) => {
+                if (!err) {
+                    this.cssModified = Math.max(stats.mtime.getTime(), this.cssModified);
+                }
+                else
+                    console.log(err)
+                rs();
+            });
+        }));
+    });
+
+    this.jsFiles.forEach(fName => {
+        sync.push(new Promise(rs => {
+            fs.stat(fName, (err, stats) => {
+                if (!err) {
+                    this.jsModified = Math.max(stats.mtime.getTime(), this.jsModified);
+                }
+                else
+                    console.log(err)
+                rs();
+            });
+        }));
+    });
+
+    return Promise.all(sync).then(() => {
+        printLine(`Javascript Files: ${this.jsFiles.length}  -  ${new Date(this.jsModified)}`);
+        printLine(`CSS Files: ${this.cssFiles.length}  -  ${new Date(this.cssModified)}`);
+    });
 };
 
 JSPureBuilder.prototype._writeMap = function () {
@@ -543,11 +569,6 @@ JSPureBuilder.prototype._writeMap = function () {
             });
         }
     });
-
-    fs.writeFile("map.json", JSON.stringify(shortIdsRev, null, 4), 'utf8', function (err, data) {
-
-    });
-    printLine("Save map: map.json", false);
 };
 
 
