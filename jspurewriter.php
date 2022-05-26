@@ -43,16 +43,16 @@ class JSPureWriter
 
     function writeJSModule($id, $fileName)
     {
-        echo "moduleFactories[\"" . $id . "\"] = function(module, exports, require, __dir__, __file_name__){\n";
+        echo "moduleFactories[\"" . $id . "\"] = function(module, exports, require, __dirname, __filename){\n";
         readfile($this->opt["dir"] . "/" . $fileName);
-        echo "\nreturn module.exports;\n};\n\n";
+        echo "\n};\n\n";
     }
 
     function writeJSStyleModule($id)
     {
-        echo "moduleFactories[\"" . $id . "\"] = function(module, exports, require, __dir__, __file_name__){\n";
+        echo "moduleFactories[\"" . $id . "\"] = function(module, exports, require, __dirname, __filename){\n";
         echo "module.exports = {};";
-        echo "\nreturn module.exports;\n};\n\n";
+        echo "\n};\n\n";
     }
 
     function writeJSExeFactor($id){
@@ -141,7 +141,7 @@ function module_require(cr, rq) {
         module = { exports: {} };
         modules[id] = module;
         if (factory){
-            module.exports = factory(module, module.exports, module_require.bind(null, id), dir, id);
+            /*module.exports = */factory(module, module.exports, module_require.bind(null, id), dir, id);
         }
         else {
             console.error("Could not file module "+ id + '. ', "Please update indexed module!" );
