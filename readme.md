@@ -32,7 +32,7 @@ absol-full-js.php
 <?php
     include_once "absol_indexed_source.php";
 
-    $DONT_CACHE = false;
+    $DONT_CACHE = !isset($_GET["mtime"]);
     ob_start();
     header('Content-Type: application/javascript');
 
